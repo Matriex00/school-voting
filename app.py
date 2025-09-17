@@ -227,6 +227,41 @@ def session_results(session_code):
             counts[v.candidate_id]['count'] += 1
     return jsonify({'session_code': s.code, 'class': s.class_name, 'status': s.status, 'counts': counts})
 
+@app.route('/api/sessions/summary', methods=['POST'])
+def sessions_summary():
+    headers = { 'x-teacher-key': request.headers.get('x-teacher-key') }
+    if headers['x-teacher-key'] != TEACHER_KEY:
+        return jsonify({'error':'Forbidden'}), 403
+
+    data = request.get_json() or {}
+    session_codes = data.get('session_codes', [])  # lista kodów sesji np. ["A1B2", "C3D4"]
+
+    if not session_codes:
+        return jsonify({'error': 'Podaj kody sesji'}), 400
+
+    all_votes = []
+    summary_counts = {}
+    for code in session_codes:
+        s = Session.query.filter_by(code=code).first()
+        if not s:
+            continue
+        votes = Vote.query.filter_by(session_id=s.id).all()
+        candidates = Candidate.query.filter_by(session_id=s.id).all()
+        for c in candidates:
+            if c.name not in summary_counts:
+                summary_counts[c.name] = 0
+        for v in votes:
+            cand = Candidate.query.get(v.candidate_id)
+            if cand:
+                summary_counts[cand.name] += 1
+        all_votes.extend(votes)
+
+    return jsonify({
+        'session_codes': session_codes,
+        'summary_counts': summary_counts,
+        'total_votes': len(all_votes)
+    })
+
 # PDF GENERATOR
 def generate_pdf_bytes(session_obj):
     votes = Vote.query.filter_by(session_id=session_obj.id).order_by(Vote.ts).all()

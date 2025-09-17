@@ -1,62 +1,151 @@
 <!doctype html>
 <html lang="pl">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Głosowanie - szkoła</title>
-  <style>body{font-family:Arial;padding:16px}button{padding:12px;margin:6px 0;width:100%}</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Głosowanie — szkoła</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f4f8;
+    margin: 0;
+    padding: 0;
+    color: #333;
+  }
+  header {
+    background: linear-gradient(90deg, #4facfe, #00f2fe);
+    color: white;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header img { height: 40px; }
+  main {
+    max-width: 500px;
+    margin: 40px auto;
+    background: white;
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+  }
+  h2, h3 { text-align: center; margin-bottom: 24px; }
+  label { display: block; margin-top: 12px; font-weight: 600; }
+  input {
+    width: 100%; padding: 12px; margin-top: 6px;
+    border-radius: 8px; border: 1px solid #ccc; font-size: 16px;
+  }
+  button {
+    width: 100%; padding: 14px; margin-top: 12px;
+    border: none; border-radius: 10px; font-size: 16px; font-weight: 600;
+    cursor: pointer; transition: 0.3s; background: #4facfe; color: white;
+  }
+  button:hover { background: #00f2fe; }
+  #candidates button {
+    display: block; width: 100%; margin: 6px 0; font-size: 18px; 
+    background: #e8f1fc; color: #333; font-weight: 600;
+  }
+  #candidates button.selected { background: #4facfe; color: white; }
+  #status { margin-top: 16px; text-align: center; font-weight: 600; }
+</style>
 </head>
 <body>
-  <h2>Wybory — głosowanie</h2>
-  <label>Kod sesji: <input id="code" /></label><br/>
-  <label>ID tabletu: <input id="tablet" placeholder="np. stolik-1" /></label><br/>
+
+<header>
+  <h1>Głosowanie</h1>
+  <img src="logo.png" alt="Logo szkoły">
+</header>
+
+<main>
+  <h2>Dołącz do sesji</h2>
+
+  <label>Kod sesji:</label>
+  <input id="code" placeholder="Wpisz kod sesji">
+
+  <label>ID tabletu:</label>
+  <input id="tablet" placeholder="np. stolik-1">
+
   <button id="join">Dołącz</button>
+
   <div id="vote-area" style="display:none">
     <h3>Kandydaci</h3>
     <div id="candidates"></div>
     <button id="send" disabled>Wyślij głos</button>
     <p id="status"></p>
   </div>
+</main>
+
 <script>
-  const joinBtn = document.getElementById('join');
-  const sendBtn = document.getElementById('send');
-  let selectedCandidate = null;
-  let currentCode = null;
-  let tabletId = null;
-  joinBtn.onclick = async () => {
-    const code = document.getElementById('code').value.trim();
-    tabletId = document.getElementById('tablet').value.trim() || 'tablet-'+Math.floor(Math.random()*10000);
-    if (!code) return alert('Wpisz kod sesji');
+const joinBtn = document.getElementById('join');
+const sendBtn = document.getElementById('send');
+let selectedCandidate = null;
+let currentCode = null;
+let tabletId = null;
+
+joinBtn.onclick = async () => {
+  const code = document.getElementById('code').value.trim();
+  tabletId = document.getElementById('tablet').value.trim() || 'tablet-'+Math.floor(Math.random()*10000);
+  if(!code) return alert('Wpisz kod sesji');
+
+  try {
     const res = await fetch('/api/session/join', {
-      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({session_code:code, tablet_id:tabletId})
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({session_code: code, tablet_id: tabletId})
     });
     const j = await res.json();
     if (j.error) return alert(j.error);
+
     currentCode = code;
     document.getElementById('vote-area').style.display='block';
+
     const c = await fetch(`/api/session/${code}/candidates`);
     const cd = await c.json();
-    const container = document.getElementById('candidates'); container.innerHTML='';
-    cd.forEach(item=>{
+    const container = document.getElementById('candidates'); 
+    container.innerHTML='';
+
+    cd.forEach(item => {
       const btn = document.createElement('button');
       btn.textContent = item.name;
-      btn.onclick = ()=>{ selectedCandidate = item.id; sendBtn.disabled=false; Array.from(container.children).forEach(b=>b.style.opacity='0.6'); btn.style.opacity='1';}
+      btn.onclick = () => {
+        selectedCandidate = item.id;
+        sendBtn.disabled = false;
+        Array.from(container.children).forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      }
       container.appendChild(btn);
     });
-    sendBtn.onclick = async ()=>{
-      if (!selectedCandidate) return alert('Wybierz kandydata');
-      sendBtn.disabled = true;
-      const r = await fetch('/api/vote', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({session_code:currentCode, candidate_id:selectedCandidate, tablet_id:tabletId})
-      });
-      const jr = await r.json();
-      if (jr.error) alert(jr.error); else {
-        document.getElementById('status').textContent = `Głos zapisany: ${jr.timestamp}`;
-        setTimeout(()=>{ document.getElementById('status').textContent=''; sendBtn.disabled=true; selectedCandidate=null; }, 1800);
-      }
-    }
+  } catch(e) {
+    alert('Błąd połączenia');
   }
+};
+
+sendBtn.onclick = async () => {
+  if (!selectedCandidate) return alert('Wybierz kandydata');
+  sendBtn.disabled = true;
+
+  try {
+    const r = await fetch('/api/vote', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({session_code:currentCode, candidate_id:selectedCandidate, tablet_id:tabletId})
+    });
+    const jr = await r.json();
+    if (jr.error) alert(jr.error); 
+    else {
+      document.getElementById('status').textContent = `Głos zapisany: ${jr.timestamp}`;
+      setTimeout(()=> {
+        document.getElementById('status').textContent='';
+        sendBtn.disabled=true;
+        selectedCandidate=null;
+        Array.from(document.getElementById('candidates').children).forEach(b => b.classList.remove('selected'));
+      }, 1800);
+    }
+  } catch(e) {
+    alert('Błąd połączenia');
+  }
+};
 </script>
+
 </body>
 </html>

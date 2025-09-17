@@ -4,118 +4,184 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Panel nauczyciela</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <style>
-body { font-family: Arial; padding: 12px; }
-input,textarea { width: 100%; padding: 8px; margin: 6px 0; }
-button { padding: 8px 12px; margin: 6px 0; }
-pre { background: #f4f4f4; padding: 8px; overflow: auto; }
+body {
+    font-family: 'Inter', Arial, sans-serif;
+    background: #f0f6ff;
+    color: #1b1f3b;
+    margin:0;
+    padding:0;
+}
+header {
+    display:flex;
+    align-items:center;
+    background:#1e3a8a;
+    color:white;
+    padding:12px 24px;
+}
+header img {
+    height:40px;
+    margin-right:12px;
+}
+header h1 {
+    font-size:1.5rem;
+}
+main {
+    max-width:700px;
+    margin:24px auto;
+    background:white;
+    border-radius:12px;
+    padding:24px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.1);
+}
+input,textarea,button {
+    width:100%;
+    padding:10px;
+    margin:8px 0;
+    border-radius:6px;
+    border:1px solid #cbd5e1;
+    font-size:1rem;
+}
+button {
+    background:#3b82f6;
+    color:white;
+    border:none;
+    cursor:pointer;
+    transition:0.2s;
+}
+button:hover {
+    background:#2563eb;
+}
+pre {
+    background:#f1f5f9;
+    padding:12px;
+    border-radius:6px;
+    overflow:auto;
+}
+hr {
+    border:none;
+    border-top:1px solid #cbd5e1;
+    margin:16px 0;
+}
 </style>
 </head>
 <body>
 
-<h2>Panel nauczyciela</h2>
+<header>
+    <img src="logo.png" alt="Logo szkoły">
+    <h1>Panel nauczyciela</h1>
+</header>
 
-<label>Klasa: <input id="class" value="3A" /></label>
-<label>Kandydaci (oddzielone przecinkami): <input id="candidates" value="Alicja,Bartek,Cezary" /></label>
-<button id="open">Otwórz sesję</button>
-<p id="open-res"></p>
+<main>
+    <label>Klasa: <input id="class" value="3A" /></label>
+    <label>Kandydaci (oddzielone przecinkami): <input id="candidates" value="Alicja,Bartek,Cezary" /></label>
+    <button id="open">Otwórz sesję</button>
+    <p id="open-res"></p>
 
-<hr/>
+    <hr/>
 
-<label>Kod sesji do zamknięcia: <input id="close-code" /></label><br/>
-<button id="close">Zamknij sesję</button>
-<p id="close-res"></p>
+    <label>Kod sesji do zamknięcia: <input id="close-code" /></label>
+    <button id="close">Zamknij sesję</button>
+    <p id="close-res"></p>
 
-<hr/>
+    <hr/>
 
-<label>Pobierz wyniki (kod): <input id="res-code" /></label>
-<button id="get-res">Pobierz</button>
-<pre id="res-out"></pre>
+    <label>Pobierz wyniki (kod): <input id="res-code" /></label>
+    <button id="get-res">Pobierz</button>
+    <pre id="res-out"></pre>
+
+    <hr/>
+
+    <label>Podsumowanie wielu sesji (oddzielone przecinkami): <input id="summary-codes" /></label>
+    <button id="summary">Pokaż podsumowanie</button>
+    <pre id="summary-out"></pre>
+</main>
 
 <script>
-const BASE_URL = 'https://school-voting-vwl3.onrender.com'; // Twój backend na Render
+const BASE_URL = 'https://school-voting-vwl3.onrender.com';
 
-// Funkcja do pobrania nagłówka z kluczem nauczyciela
 async function authHeader() {
   const key = prompt('Wpisz klucz nauczyciela (teacher key):');
   return key ? { 'x-teacher-key': key } : {};
 }
 
-// Otwieranie sesji
 document.getElementById('open').onclick = async () => {
-  const headers = await authHeader();
-  if(!headers['x-teacher-key']) return;
+    const headers = await authHeader(); 
+    if(!headers['x-teacher-key']) return;
 
-  const class_name = document.getElementById('class').value.trim();
-  const candidates = document.getElementById('candidates').value.split(',')
-                        .map(s => s.trim()).filter(Boolean);
+    const class_name = document.getElementById('class').value.trim();
+    const candidates = document.getElementById('candidates').value.split(',').map(s=>s.trim()).filter(Boolean);
 
-  try {
-    const r = await fetch(`${BASE_URL}/api/session/open`, {
-      method: 'POST',
-      headers: {...headers, 'Content-Type':'application/json'},
-      body: JSON.stringify({ class_name, candidates })
-    });
-    const j = await r.json();
-    if (j.session_code) {
-      document.getElementById('open-res').textContent = `Kod sesji: ${j.session_code}`;
-      // automatycznie wstawiamy kod sesji do zamknięcia i wyników
-      document.getElementById('close-code').value = j.session_code;
-      document.getElementById('res-code').value = j.session_code;
-    } else {
-      document.getElementById('open-res').textContent = JSON.stringify(j);
+    try {
+        const r = await fetch(`${BASE_URL}/api/session/open`, {
+            method:'POST', headers:{...headers,'Content-Type':'application/json'},
+            body:JSON.stringify({ class_name, candidates })
+        });
+        const j = await r.json();
+        document.getElementById('open-res').textContent = j.session_code ? `Kod sesji: ${j.session_code}` : JSON.stringify(j);
+    } catch(e) {
+        document.getElementById('open-res').textContent = 'Błąd połączenia';
     }
-  } catch(e) {
-    document.getElementById('open-res').textContent = 'Błąd połączenia';
-  }
 };
 
-// Zamknięcie sesji i pobranie PDF
 document.getElementById('close').onclick = async () => {
-  const headers = await authHeader();
-  if(!headers['x-teacher-key']) return;
+    const headers = await authHeader(); 
+    if(!headers['x-teacher-key']) return;
 
-  const code = document.getElementById('close-code').value.trim();
-  if(!code) return alert('Wpisz kod sesji do zamknięcia');
+    const code = document.getElementById('close-code').value.trim();
+    if(!code) return alert('Wpisz kod sesji do zamknięcia');
 
-  try {
-    const r = await fetch(`${BASE_URL}/api/session/close`, {
-      method:'POST',
-      headers: {...headers,'Content-Type':'application/json'},
-      body: JSON.stringify({ session_code: code })
-    });
-    if (r.ok) {
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `session_${code}.pdf`;
-      a.click();
-      document.getElementById('close-res').textContent = `PDF pobierany...`;
-    } else {
-      const j = await r.json();
-      document.getElementById('close-res').textContent = JSON.stringify(j);
-    }
-  } catch(e) {
-    document.getElementById('close-res').textContent = 'Błąd połączenia';
-  }
+    try {
+        const r = await fetch(`${BASE_URL}/api/session/close`, {
+            method:'POST', headers:{...headers,'Content-Type':'application/json'},
+            body:JSON.stringify({ session_code: code })
+        });
+        if(r.ok) {
+            const blob = await r.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `session_${code}.pdf`;
+            a.click();
+            document.getElementById('close-res').textContent = `PDF pobierany...`;
+        } else {
+            const j = await r.json();
+            document.getElementById('close-res').textContent = JSON.stringify(j);
+        }
+    } catch(e) { document.getElementById('close-res').textContent = 'Błąd połączenia'; }
 };
 
-// Pobranie wyników JSON
 document.getElementById('get-res').onclick = async () => {
-  const headers = await authHeader();
-  if(!headers['x-teacher-key']) return;
+    const headers = await authHeader();
+    if(!headers['x-teacher-key']) return;
 
-  const code = document.getElementById('res-code').value.trim();
-  if(!code) return alert('Wpisz kod sesji do pobrania wyników');
+    const code = document.getElementById('res-code').value.trim();
+    if(!code) return alert('Wpisz kod sesji do pobrania wyników');
 
-  try {
-    const r = await fetch(`${BASE_URL}/api/session/${code}/results`, { headers });
-    const j = await r.json();
-    document.getElementById('res-out').textContent = JSON.stringify(j, null, 2);
-  } catch(e) {
-    document.getElementById('res-out').textContent = 'Błąd połączenia';
-  }
+    try {
+        const r = await fetch(`${BASE_URL}/api/session/${code}/results`, { headers });
+        const j = await r.json();
+        document.getElementById('res-out').textContent = JSON.stringify(j,null,2);
+    } catch(e) { document.getElementById('res-out').textContent = 'Błąd połączenia'; }
+};
+
+document.getElementById('summary').onclick = async () => {
+    const headers = await authHeader();
+    if(!headers['x-teacher-key']) return;
+
+    const codes = document.getElementById('summary-codes').value.split(',').map(s=>s.trim()).filter(Boolean);
+    if(!codes.length) return alert('Wpisz kody sesji do podsumowania');
+
+    try {
+        const r = await fetch(`${BASE_URL}/api/sessions/summary`, {
+            method:'POST',
+            headers:{...headers,'Content-Type':'application/json'},
+            body: JSON.stringify({ session_codes: codes })
+        });
+        const j = await r.json();
+        document.getElementById('summary-out').textContent = JSON.stringify(j,null,2);
+    } catch(e) { document.getElementById('summary-out').textContent = 'Błąd połączenia'; }
 };
 </script>
 </body>

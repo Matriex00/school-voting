@@ -92,6 +92,60 @@ def append_backup_file(session_code, row):
             writer.writerow(['vote_id','session_code','candidate_id','candidate_name','tablet_id','timestamp'])
         writer.writerow(row)
 
+# PDF GENERATOR
+def generate_pdf_bytes(session_obj):
+    votes = Vote.query.filter_by(session_id=session_obj.id).order_by(Vote.ts).all()
+    candidates = Candidate.query.filter_by(session_id=session_obj.id).all()
+    counts = {c.id: {'name': c.name, 'count': 0} for c in candidates}
+
+    for v in votes:
+        if v.candidate_id in counts:
+            counts[v.candidate_id]['count'] += 1
+
+    total_votes = sum(info['count'] for info in counts.values())
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    w, h = A4
+    margin = 15*mm
+    y = h - margin
+
+    c.setFont('Helvetica-Bold', 14)
+    c.drawString(margin, y, f"Podsumowanie sesji: {session_obj.code} — klasa: {session_obj.class_name}")
+    y -= 10*mm
+    c.setFont('Helvetica', 10)
+    c.drawString(margin, y, f"Start: {session_obj.start_ts}")
+    y -= 6*mm
+    c.drawString(margin, y, f"Koniec: {session_obj.end_ts}")
+    y -= 10*mm
+
+    c.setFont('Helvetica-Bold', 12)
+    c.drawString(margin, y, "Wyniki:")
+    y -= 8*mm
+    c.setFont('Helvetica', 11)
+    for cid, info in counts.items():
+        percent = (info['count']/total_votes*100) if total_votes > 0 else 0
+        c.drawString(margin, y, f"{info['name']}: {info['count']} głosów ({percent:.1f}%)")
+        y -= 6*mm
+
+    y -= 6*mm
+    c.setFont('Helvetica-Bold', 12)
+    c.drawString(margin, y, "Szczegóły głosów:")
+    y -= 8*mm
+    c.setFont('Helvetica', 9)
+    for v in votes:
+        ts = v.ts.isoformat()
+        txt = f"id={v.id}, candidate_id={v.candidate_id}, tablet={v.tablet_id}, ts={ts}"
+        c.drawString(margin, y, txt[:110])
+        y -= 5*mm
+        if y < margin:
+            c.showPage()
+            y = h - margin
+
+    c.save()
+    buf.seek(0)
+    return buf.read()
+
 # TRASY API
 @app.route("/")
 def index():
@@ -204,7 +258,12 @@ def close_session():
     db.session.add(s)
     db.session.commit()
 
+    # Generowanie PDF i zapis do katalogu reports
     pdf_bytes = generate_pdf_bytes(s)
+    os.makedirs('reports', exist_ok=True)
+    with open(f'reports/session_{code}.pdf', 'wb') as f:
+        f.write(pdf_bytes)
+
     db.session.add(Audit(action='CLOSE_SESSION', details=f'session {code} closed'))
     db.session.commit()
 
@@ -222,56 +281,47 @@ def session_results(session_code):
     votes = Vote.query.filter_by(session_id=s.id).all()
     cands = Candidate.query.filter_by(session_id=s.id).all()
     counts = {c.id: {'name': c.name, 'count': 0} for c in cands}
+    total_votes = 0
     for v in votes:
         if v.candidate_id in counts:
             counts[v.candidate_id]['count'] += 1
+            total_votes +=1
+    # Dodanie procentów
+    for info in counts.values():
+        info['percent'] = (info['count']/total_votes*100) if total_votes>0 else 0
     return jsonify({'session_code': s.code, 'class': s.class_name, 'status': s.status, 'counts': counts})
 
 @app.route('/api/sessions/summary', methods=['POST'])
 def sessions_summary():
-    headers = { 'x-teacher-key': request.headers.get('x-teacher-key') }
-    if headers['x-teacher-key'] != TEACHER_KEY:
+    key = request.headers.get('x-teacher-key')
+    if key != TEACHER_KEY:
         return jsonify({'error':'Forbidden'}), 403
 
     data = request.get_json() or {}
-    session_codes = data.get('session_codes', [])  # lista kodów sesji np. ["A1B2", "C3D4"]
+    session_codes = data.get('session_codes', [])
 
     if not session_codes:
         return jsonify({'error': 'Podaj kody sesji'}), 400
 
-    all_votes = []
-    summary_counts = {}
+    all_counts = {}
+    total_votes = 0
+
     for code in session_codes:
-        s = Session.query.filter_by(code=code).first()
+        s = Session.query.filter_by(code=code, status='CLOSED').first()
         if not s:
             continue
         votes = Vote.query.filter_by(session_id=s.id).all()
-        candidates = Candidate.query.filter_by(session_id=s.id).all()
-        for c in candidates:
-            if c.name not in summary_counts:
-                summary_counts[c.name] = 0
+        cands = Candidate.query.filter_by(session_id=s.id).all()
+        for c in cands:
+            if c.name not in all_counts:
+                all_counts[c.name] = 0
         for v in votes:
             cand = Candidate.query.get(v.candidate_id)
             if cand:
-                summary_counts[cand.name] += 1
-        all_votes.extend(votes)
+                all_counts[cand.name] +=1
+                total_votes +=1
 
-    return jsonify({
-        'session_codes': session_codes,
-        'summary_counts': summary_counts,
-        'total_votes': len(all_votes)
-    })
-
-# PDF GENERATOR
-def generate_pdf_bytes(session_obj):
-    votes = Vote.query.filter_by(session_id=session_obj.id).order_by(Vote.ts).all()
-    candidates = Candidate.query.filter_by(session_id=session_obj.id).all()
-    counts = {c.id: {'name': c.name, 'count': 0} for c in candidates}
-
-    for v in votes:
-        if v.candidate_id in counts:
-            counts[v.candidate_id]['count'] += 1
-
+    # Generowanie PDF zbiorczego
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     w, h = A4
@@ -279,39 +329,26 @@ def generate_pdf_bytes(session_obj):
     y = h - margin
 
     c.setFont('Helvetica-Bold', 14)
-    c.drawString(margin, y, f"Podsumowanie sesji: {session_obj.code} — klasa: {session_obj.class_name}")
+    c.drawString(margin, y, f"Raport zbiorczy sesji: {', '.join(session_codes)}")
     y -= 10*mm
-    c.setFont('Helvetica', 10)
-    c.drawString(margin, y, f"Start: {session_obj.start_ts}")
-    y -= 6*mm
-    c.drawString(margin, y, f"Koniec: {session_obj.end_ts}")
-    y -= 10*mm
-
-    c.setFont('Helvetica-Bold', 12)
-    c.drawString(margin, y, "Wyniki:")
-    y -= 8*mm
     c.setFont('Helvetica', 11)
-    for cid, info in counts.items():
-        c.drawString(margin, y, f"{info['name']}: {info['count']} głosów")
+    for name, count in all_counts.items():
+        percent = (count/total_votes*100) if total_votes>0 else 0
+        c.drawString(margin, y, f"{name}: {count} głosów ({percent:.1f}%)")
         y -= 6*mm
-
-    y -= 6*mm
-    c.setFont('Helvetica-Bold', 12)
-    c.drawString(margin, y, "Szczegóły głosów:")
-    y -= 8*mm
-    c.setFont('Helvetica', 9)
-    for v in votes:
-        ts = v.ts.isoformat()
-        txt = f"id={v.id}, candidate_id={v.candidate_id}, tablet={v.tablet_id}, ts={ts}"
-        c.drawString(margin, y, txt[:110])
-        y -= 5*mm
         if y < margin:
             c.showPage()
             y = h - margin
-
     c.save()
     buf.seek(0)
-    return buf.read()
+
+    # Zapis do reports/
+    os.makedirs('reports', exist_ok=True)
+    with open(f"reports/summary_{'_'.join(session_codes)}.pdf", 'wb') as f:
+        f.write(buf.getvalue())
+
+    return send_file(buf, mimetype='application/pdf', as_attachment=True,
+                     download_name=f"summary_{'_'.join(session_codes)}.pdf")
 
 # TWORZENIE TABEL
 with app.app_context():

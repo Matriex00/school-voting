@@ -26,7 +26,7 @@ BACKUP_TO_FILES = False  # UWAGA: Render web services mają ephemeral FS — NIE
 app = Flask(__name__, static_folder='static', static_url_path='')
 
 # Konfiguracja SQLAlchemy
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or 'sqlite:///local.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Inicjalizacja bazy danych

@@ -15,13 +15,21 @@ from sqlalchemy.sql import func
 import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.sql import func
 
-app = Flask(__name__)
+# Konfiguracja
+DATABASE_URL = os.getenv("DATABASE_URL")  # Render environment variable
+TEACHER_KEY = os.getenv("TEACHER_KEY", "change_this_teacher_key")
+BACKUP_TO_FILES = False  # UWAGA: Render web services mają ephemeral FS — NIE polegaj na plikach
 
-# Pobiera poprawny URL z zmiennej środowiskowej DATABASE_URL
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # opcjonalnie, wyłącza warning
+# Tworzymy aplikację Flask
+app = Flask(__name__, static_folder='static', static_url_path='')
 
+# Konfiguracja SQLAlchemy
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or 'sqlite:///local.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Inicjalizacja bazy danych
 db = SQLAlchemy(app)
 
 # MODELS

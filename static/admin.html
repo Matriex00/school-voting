@@ -1,42 +1,81 @@
 <!doctype html>
 <html lang="pl">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Panel nauczyciela</title>
-<style>body{font-family:Arial;padding:12px}input,textarea{width:100%;padding:8px;margin:6px 0}</style>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panel nauczyciela</title>
+<style>
+body{font-family:Arial;padding:12px}
+input,textarea{width:100%;padding:8px;margin:6px 0}
+button{padding:8px 12px;margin:6px 0}
+pre{background:#f4f4f4;padding:8px;overflow:auto}
+</style>
 </head>
 <body>
   <h2>Panel nauczyciela</h2>
+
   <label>Klasa: <input id="class" value="3A" /></label>
   <label>Kandydaci (oddzielone przecinkami): <input id="candidates" value="Alicja,Bartek,Cezary" /></label>
   <button id="open">Otwórz sesję</button>
   <p id="open-res"></p>
+
   <hr/>
+
   <label>Kod sesji do zamknięcia: <input id="close-code" /></label><br/>
   <button id="close">Zamknij sesję</button>
   <p id="close-res"></p>
+
   <hr/>
+
   <label>Pobierz wyniki (kod): <input id="res-code" /></label>
   <button id="get-res">Pobierz</button>
   <pre id="res-out"></pre>
 
 <script>
-  async function authHeader() {
-    const key = prompt('Wpisz klucz nauczyciela (teacher key):');
-    return { 'x-teacher-key': key };
-  }
-  document.getElementById('open').onclick = async ()=>{
-    const headers = await authHeader(); if(!headers['x-teacher-key']) return;
-    const class_name = document.getElementById('class').value;
-    const candidates = document.getElementById('candidates').value.split(',').map(s=>s.trim()).filter(Boolean);
-    const r = await fetch('/api/session/open', { method:'POST', headers: {...headers,'Content-Type':'application/json'}, body: JSON.stringify({ class_name, candidates })});
+const BASE_URL = 'https://school-voting-vwl3.onrender.com';
+
+async function authHeader() {
+  const key = prompt('Wpisz klucz nauczyciela (teacher key):');
+  return key ? { 'x-teacher-key': key } : {};
+}
+
+document.getElementById('open').onclick = async () => {
+  const headers = await authHeader(); 
+  if(!headers['x-teacher-key']) return;
+
+  const class_name = document.getElementById('class').value.trim();
+  const candidates = document.getElementById('candidates').value.split(',')
+                        .map(s => s.trim()).filter(Boolean);
+
+  try {
+    const r = await fetch(`${BASE_URL}/api/session/open`, {
+      method: 'POST',
+      headers: {...headers, 'Content-Type':'application/json'},
+      body: JSON.stringify({ class_name, candidates })
+    });
     const j = await r.json();
-    document.getElementById('open-res').textContent = j.session_code ? `Kod sesji: ${j.session_code}` : JSON.stringify(j);
-  };
-  document.getElementById('close').onclick = async ()=>{
-    const headers = await authHeader(); if(!headers['x-teacher-key']) return;
-    const code = document.getElementById('close-code').value.trim();
-    const r = await fetch('/api/session/close', { method:'POST', headers: {...headers,'Content-Type':'application/json'}, body: JSON.stringify({ session_code: code })});
+    document.getElementById('open-res').textContent = j.session_code 
+      ? `Kod sesji: ${j.session_code}` 
+      : JSON.stringify(j);
+  } catch(e) {
+    document.getElementById('open-res').textContent = 'Błąd połączenia';
+  }
+};
+
+document.getElementById('close').onclick = async () => {
+  const headers = await authHeader(); 
+  if(!headers['x-teacher-key']) return;
+
+  const code = document.getElementById('close-code').value.trim();
+  if(!code) return alert('Wpisz kod sesji do zamknięcia');
+
+  try {
+    const r = await fetch(`${BASE_URL}/api/session/close`, {
+      method:'POST',
+      headers: {...headers,'Content-Type':'application/json'},
+      body: JSON.stringify({ session_code: code })
+    });
     if (r.ok) {
-      // otrzymamy plik PDF w odpowiedzi - przeglądarka zapyta o pobranie
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -48,14 +87,26 @@
       const j = await r.json();
       document.getElementById('close-res').textContent = JSON.stringify(j);
     }
-  };
-  document.getElementById('get-res').onclick = async ()=>{
-    const headers = await authHeader(); if(!headers['x-teacher-key']) return;
-    const code = document.getElementById('res-code').value.trim();
-    const r = await fetch(`/api/session/${code}/results`, { headers });
+  } catch(e) {
+    document.getElementById('close-res').textContent = 'Błąd połączenia';
+  }
+};
+
+document.getElementById('get-res').onclick = async () => {
+  const headers = await authHeader(); 
+  if(!headers['x-teacher-key']) return;
+
+  const code = document.getElementById('res-code').value.trim();
+  if(!code) return alert('Wpisz kod sesji do pobrania wyników');
+
+  try {
+    const r = await fetch(`${BASE_URL}/api/session/${code}/results`, { headers });
     const j = await r.json();
     document.getElementById('res-out').textContent = JSON.stringify(j, null, 2);
-  };
+  } catch(e) {
+    document.getElementById('res-out').textContent = 'Błąd połączenia';
+  }
+};
 </script>
 </body>
 </html>

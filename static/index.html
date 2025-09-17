@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Głosowanie - szkoła</title>
+  <style>body{font-family:Arial;padding:16px}button{padding:12px;margin:6px 0;width:100%}</style>
+</head>
+<body>
+  <h2>Wybory — głosowanie</h2>
+  <label>Kod sesji: <input id="code" /></label><br/>
+  <label>ID tabletu: <input id="tablet" placeholder="np. stolik-1" /></label><br/>
+  <button id="join">Dołącz</button>
+  <div id="vote-area" style="display:none">
+    <h3>Kandydaci</h3>
+    <div id="candidates"></div>
+    <button id="send" disabled>Wyślij głos</button>
+    <p id="status"></p>
+  </div>
+<script>
+  const joinBtn = document.getElementById('join');
+  const sendBtn = document.getElementById('send');
+  let selectedCandidate = null;
+  let currentCode = null;
+  let tabletId = null;
+  joinBtn.onclick = async () => {
+    const code = document.getElementById('code').value.trim();
+    tabletId = document.getElementById('tablet').value.trim() || 'tablet-'+Math.floor(Math.random()*10000);
+    if (!code) return alert('Wpisz kod sesji');
+    const res = await fetch('/api/session/join', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({session_code:code, tablet_id:tabletId})
+    });
+    const j = await res.json();
+    if (j.error) return alert(j.error);
+    currentCode = code;
+    document.getElementById('vote-area').style.display='block';
+    const c = await fetch(`/api/session/${code}/candidates`);
+    const cd = await c.json();
+    const container = document.getElementById('candidates'); container.innerHTML='';
+    cd.forEach(item=>{
+      const btn = document.createElement('button');
+      btn.textContent = item.name;
+      btn.onclick = ()=>{ selectedCandidate = item.id; sendBtn.disabled=false; Array.from(container.children).forEach(b=>b.style.opacity='0.6'); btn.style.opacity='1';}
+      container.appendChild(btn);
+    });
+    sendBtn.onclick = async ()=>{
+      if (!selectedCandidate) return alert('Wybierz kandydata');
+      sendBtn.disabled = true;
+      const r = await fetch('/api/vote', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({session_code:currentCode, candidate_id:selectedCandidate, tablet_id:tabletId})
+      });
+      const jr = await r.json();
+      if (jr.error) alert(jr.error); else {
+        document.getElementById('status').textContent = `Głos zapisany: ${jr.timestamp}`;
+        setTimeout(()=>{ document.getElementById('status').textContent=''; sendBtn.disabled=true; selectedCandidate=null; }, 1800);
+      }
+    }
+  }
+</script>
+</body>
+</html>

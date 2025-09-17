@@ -30,7 +30,16 @@ app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL.replace("postgresql://", "p
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Inicjalizacja bazy danych
-db = SQLAlchemy(app)
+db = SQLAlchemy(app)  # <- tu inicjalizujesz SQLAlchemy
+
+# Tutaj wklejasz trasę testową
+@app.route('/db-test')
+def db_test():
+    try:
+        db.session.execute("SELECT 1")
+        return "DB OK"
+    except Exception as e:
+        return f"DB ERROR: {e}"
 
 # MODELS
 class Session(db.Model):

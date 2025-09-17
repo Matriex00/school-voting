@@ -5,42 +5,45 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Panel nauczyciela</title>
 <style>
-body{font-family:Arial;padding:12px}
-input,textarea{width:100%;padding:8px;margin:6px 0}
-button{padding:8px 12px;margin:6px 0}
-pre{background:#f4f4f4;padding:8px;overflow:auto}
+body { font-family: Arial; padding: 12px; }
+input,textarea { width: 100%; padding: 8px; margin: 6px 0; }
+button { padding: 8px 12px; margin: 6px 0; }
+pre { background: #f4f4f4; padding: 8px; overflow: auto; }
 </style>
 </head>
 <body>
-  <h2>Panel nauczyciela</h2>
 
-  <label>Klasa: <input id="class" value="3A" /></label>
-  <label>Kandydaci (oddzielone przecinkami): <input id="candidates" value="Alicja,Bartek,Cezary" /></label>
-  <button id="open">Otwórz sesję</button>
-  <p id="open-res"></p>
+<h2>Panel nauczyciela</h2>
 
-  <hr/>
+<label>Klasa: <input id="class" value="3A" /></label>
+<label>Kandydaci (oddzielone przecinkami): <input id="candidates" value="Alicja,Bartek,Cezary" /></label>
+<button id="open">Otwórz sesję</button>
+<p id="open-res"></p>
 
-  <label>Kod sesji do zamknięcia: <input id="close-code" /></label><br/>
-  <button id="close">Zamknij sesję</button>
-  <p id="close-res"></p>
+<hr/>
 
-  <hr/>
+<label>Kod sesji do zamknięcia: <input id="close-code" /></label><br/>
+<button id="close">Zamknij sesję</button>
+<p id="close-res"></p>
 
-  <label>Pobierz wyniki (kod): <input id="res-code" /></label>
-  <button id="get-res">Pobierz</button>
-  <pre id="res-out"></pre>
+<hr/>
+
+<label>Pobierz wyniki (kod): <input id="res-code" /></label>
+<button id="get-res">Pobierz</button>
+<pre id="res-out"></pre>
 
 <script>
-const BASE_URL = 'https://school-voting-vwl3.onrender.com';
+const BASE_URL = 'https://school-voting-vwl3.onrender.com'; // Twój backend na Render
 
+// Funkcja do pobrania nagłówka z kluczem nauczyciela
 async function authHeader() {
   const key = prompt('Wpisz klucz nauczyciela (teacher key):');
   return key ? { 'x-teacher-key': key } : {};
 }
 
+// Otwieranie sesji
 document.getElementById('open').onclick = async () => {
-  const headers = await authHeader(); 
+  const headers = await authHeader();
   if(!headers['x-teacher-key']) return;
 
   const class_name = document.getElementById('class').value.trim();
@@ -54,16 +57,22 @@ document.getElementById('open').onclick = async () => {
       body: JSON.stringify({ class_name, candidates })
     });
     const j = await r.json();
-    document.getElementById('open-res').textContent = j.session_code 
-      ? `Kod sesji: ${j.session_code}` 
-      : JSON.stringify(j);
+    if (j.session_code) {
+      document.getElementById('open-res').textContent = `Kod sesji: ${j.session_code}`;
+      // automatycznie wstawiamy kod sesji do zamknięcia i wyników
+      document.getElementById('close-code').value = j.session_code;
+      document.getElementById('res-code').value = j.session_code;
+    } else {
+      document.getElementById('open-res').textContent = JSON.stringify(j);
+    }
   } catch(e) {
     document.getElementById('open-res').textContent = 'Błąd połączenia';
   }
 };
 
+// Zamknięcie sesji i pobranie PDF
 document.getElementById('close').onclick = async () => {
-  const headers = await authHeader(); 
+  const headers = await authHeader();
   if(!headers['x-teacher-key']) return;
 
   const code = document.getElementById('close-code').value.trim();
@@ -92,8 +101,9 @@ document.getElementById('close').onclick = async () => {
   }
 };
 
+// Pobranie wyników JSON
 document.getElementById('get-res').onclick = async () => {
-  const headers = await authHeader(); 
+  const headers = await authHeader();
   if(!headers['x-teacher-key']) return;
 
   const code = document.getElementById('res-code').value.trim();

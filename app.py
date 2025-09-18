@@ -320,6 +320,74 @@ def sessions_summary():
             if cand:
                 all_counts[cand.name] +=1
                 total_votes +=1
+@app.route('/api/session/<session_code>/report', methods=['GET'])
+def session_report(session_code):
+    key = request.headers.get('X-TEACHER-KEY')
+    if key != TEACHER_KEY:
+        return jsonify({'error': 'Forbidden'}), 403
+    
+    s = Session.query.filter_by(code=session_code).first()
+    if not s:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    pdf_bytes = generate_pdf_bytes(s)
+    return send_file(BytesIO(pdf_bytes), mimetype='application/pdf', as_attachment=True,
+                     download_name=f'session_{session_code}.pdf')
+@app.route('/api/sessions/summary-report', methods=['POST'])
+def sessions_summary_report():
+    key = request.headers.get('X-TEACHER-KEY')
+    if key != TEACHER_KEY:
+        return jsonify({'error':'Forbidden'}), 403
+
+    data = request.get_json() or {}
+    session_codes = data.get('session_codes', [])
+
+    if not session_codes:
+        return jsonify({'error': 'Podaj kody sesji'}), 400
+
+    summary_counts = {}
+    total_votes = 0
+
+    for code in session_codes:
+        s = Session.query.filter_by(code=code).first()
+        if not s:
+            continue
+        votes = Vote.query.filter_by(session_id=s.id).all()
+        candidates = Candidate.query.filter_by(session_id=s.id).all()
+        for c in candidates:
+            if c.name not in summary_counts:
+                summary_counts[c.name] = 0
+        for v in votes:
+            cand = Candidate.query.get(v.candidate_id)
+            if cand:
+                summary_counts[cand.name] += 1
+        total_votes += len(votes)
+
+    # generowanie PDF
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    margin = 20*mm
+    y = 800
+
+    c.setFont('Helvetica-Bold', 14)
+    c.drawString(margin, y, "Zbiorcze podsumowanie sesji")
+    y -= 20
+
+    for name, count in summary_counts.items():
+        percent = (count/total_votes*100) if total_votes > 0 else 0
+        c.setFont('Helvetica', 11)
+        c.drawString(margin, y, f"{name}: {count} głosów ({percent:.1f}%)")
+        y -= 15
+
+    c.setFont('Helvetica', 10)
+    y -= 20
+    c.drawString(margin, y, f"Łączna liczba głosów: {total_votes}")
+
+    c.save()
+    buf.seek(0)
+    return send_file(buf, mimetype='application/pdf', as_attachment=True,
+                     download_name="summary_report.pdf")
+
 
     # Generowanie PDF zbiorczego
     buf = BytesIO()

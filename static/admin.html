@@ -35,7 +35,7 @@ main {
     padding:24px;
     box-shadow:0 4px 12px rgba(0,0,0,0.1);
 }
-input,textarea,button {
+input,button {
     width:100%;
     padding:10px;
     margin:8px 0;
@@ -82,24 +82,23 @@ hr {
     <hr/>
 
     <label>Kod sesji do zamknięcia: <input id="close-code" /></label>
-    <button id="close">Zamknij sesję</button>
+    <button id="close">Zamknij sesję i pobierz raport PDF</button>
     <p id="close-res"></p>
 
     <hr/>
 
-    <label>Pobierz wyniki (kod): <input id="res-code" /></label>
-    <button id="get-res">Pobierz</button>
+    <label>Pobierz wyniki (kod sesji): <input id="res-code" /></label>
+    <button id="get-res">Pokaż wyniki (JSON)</button>
     <pre id="res-out"></pre>
 
     <hr/>
 
     <label>Podsumowanie wielu sesji (oddzielone przecinkami): <input id="summary-codes" /></label>
-    <button id="summary">Pokaż podsumowanie</button>
-    <pre id="summary-out"></pre>
+    <button id="summary">Pobierz raport zbiorczy PDF</button>
 </main>
 
 <script>
-const BASE_URL = 'https://school-voting-vwl3.onrender.com';
+const BASE_URL = ''; // zostaw puste jeśli admin.html hostujesz na tym samym serwerze co API
 
 async function authHeader() {
   const key = prompt('Wpisz klucz nauczyciela (teacher key):');
@@ -144,7 +143,7 @@ document.getElementById('close').onclick = async () => {
             a.href = url;
             a.download = `session_${code}.pdf`;
             a.click();
-            document.getElementById('close-res').textContent = `PDF pobierany...`;
+            document.getElementById('close-res').textContent = `Raport PDF pobrany.`;
         } else {
             const j = await r.json();
             document.getElementById('close-res').textContent = JSON.stringify(j);
@@ -174,13 +173,22 @@ document.getElementById('summary').onclick = async () => {
     if(!codes.length) return alert('Wpisz kody sesji do podsumowania');
 
     try {
-        const r = await fetch(`${BASE_URL}/api/sessions/summary`, {
+        const r = await fetch(`${BASE_URL}/api/sessions/summary-report`, {
             method:'POST',
             headers:{...headers,'Content-Type':'application/json'},
             body: JSON.stringify({ session_codes: codes })
         });
-        const j = await r.json();
-        document.getElementById('summary-out').textContent = JSON.stringify(j,null,2);
+        if(r.ok) {
+            const blob = await r.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "summary_report.pdf";
+            a.click();
+        } else {
+            const j = await r.json();
+            document.getElementById('summary-out').textContent = JSON.stringify(j);
+        }
     } catch(e) { document.getElementById('summary-out').textContent = 'Błąd połączenia'; }
 };
 </script>

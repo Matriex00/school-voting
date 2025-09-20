@@ -59,11 +59,15 @@
 <main>
   <h2>Dołącz do sesji</h2>
 
-  <label>Kod sesji:</label>
-  <input id="code" placeholder="Wpisz kod sesji">
+  <button id="toggle-extra" style="margin-bottom:12px;background:#ddd;color:#333">Pokaż / Ukryj dane</button>
 
-  <label>ID tabletu:</label>
-  <input id="tablet" placeholder="np. stolik-1">
+  <div id="extra-fields">
+    <label>Kod sesji:</label>
+    <input id="code" placeholder="Wpisz kod sesji">
+
+    <label>ID tabletu:</label>
+    <input id="tablet" placeholder="np. stolik-1">
+  </div>
 
   <button id="join">Dołącz</button>
 
@@ -75,6 +79,24 @@
   </div>
 </main>
 
+<script>
+const toggleBtn = document.getElementById('toggle-extra');
+const extraFields = document.getElementById('extra-fields');
+
+toggleBtn.onclick = () => {
+  if (extraFields.style.display === 'none') {
+    extraFields.style.display = 'block';
+    toggleBtn.textContent = 'Ukryj dane';
+  } else {
+    extraFields.style.display = 'none';
+    toggleBtn.textContent = 'Pokaż dane';
+  }
+};
+
+// Domyślnie można schować, jeśli chcesz
+// extraFields.style.display = 'none';
+// toggleBtn.textContent = 'Pokaż dane';
+</script>
 <script>
 const joinBtn = document.getElementById('join');
 const sendBtn = document.getElementById('send');
